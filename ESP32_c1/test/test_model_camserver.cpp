@@ -1,4 +1,4 @@
-/* test */
+/* Test code used to start and test classifier model with live cam */
 #include "esp_camera.h"
 #include <WiFi.h>
 #include "esp_heap_caps.h"
@@ -104,17 +104,16 @@ void setup() {
   input  = interpreter->input(0);
   output = interpreter->output(0);
 
-  Serial.printf("✅ Model hazır — arena kullanımı: %d / %d B\n",
+  Serial.printf("arena usage: %d / %d B\n",
                 interpreter->arena_used_bytes(), kTensorArenaSize);
   Serial.printf("Free internal heap: %d  |  Free PSRAM: %d\n",
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 }
 
-/*********************************************************/
 void classifyImage() {
   camera_fb_t* fb = esp_camera_fb_get();
-  if (!fb) { Serial.println("Frame alınamadı"); return; }
+  if (!fb) { Serial.println("Frame error"); return; }
 
   const float in_scale = input->params.scale;        
   const int   in_zp    = input->params.zero_point;   
