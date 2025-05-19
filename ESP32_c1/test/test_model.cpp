@@ -13,8 +13,8 @@
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 
-const char* ssid     = "Etkas S24 Ultra";
-const char* password = "etka12345";
+const char* ssid     = "xx";
+const char* password = "xx";
 
 /* TFLite area */
 constexpr int kTensorArenaSize = 256 * 1024;     
@@ -53,7 +53,7 @@ void setup() {
   cam.fb_count     = 1;
 
   if (esp_camera_init(&cam) != ESP_OK) {
-    Serial.println("❌ Kamera başlatılamadı");  return;
+    Serial.println("Camera error");  return;
   }
 
   /* Wi-Fi connect */
