@@ -7,6 +7,7 @@ uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))
 
 prev_time = None
 prev_speed = None
+esp_signal = Pin(6, Pin.IN)
 
 def calculate_distance(speed2_kmh, time_diff_seconds, current_temp, has_fog, has_snow):
     if time_diff_seconds > 5:
@@ -16,8 +17,15 @@ def calculate_distance(speed2_kmh, time_diff_seconds, current_temp, has_fog, has
     following_distance = speed2_mps * time_diff_seconds
 
     def calc_SD(speed_kmh):
-        v = speed_kmh / 10
-        return (v * 3) + (v ** 2 * 0.4)
+        if esp_signal.value():
+            print("Detected: Heavy vehicle")
+            fm = 0.2778 * 1.5 * speed_kmh
+            sm = (speed_kmh ** 2) / (254 * 0.7)
+            return fm + sm
+        else:    
+            print("Detected: Passenger vehicle")
+            v = speed_kmh / 10
+            return (v * 3) + (v ** 2 * 0.4)
 
     is_bad_weather = (
         current_temp is not None and current_temp < 3
