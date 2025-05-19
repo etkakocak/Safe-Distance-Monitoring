@@ -1,10 +1,11 @@
-from machine import Pin, time_pulse_us
+from machine import Pin, time_pulse_us, UART
 import time
 
 TRIG_PIN = 27
 ECHO_PIN = 16
 trig = Pin(TRIG_PIN, Pin.OUT)
 echo = Pin(ECHO_PIN, Pin.IN)
+uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))
 
 # Function to measure distance
 def measure_distance():
@@ -48,6 +49,7 @@ while True:
         if delta_t > 0:
             speed = delta_d / delta_t  # cm/s actually
             print("Speed:", round(speed, 2), "km/h")
+            uart.write(f"{speed:.2f}\n")
             time.sleep(0.005)
             break 
         else:

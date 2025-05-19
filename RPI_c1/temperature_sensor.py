@@ -2,7 +2,6 @@ import machine
 import onewire
 import ds18x20
 import time
-import _thread
 
 # DS18B20 sensor onewire connect
 ds_pin = machine.Pin(28)
@@ -29,13 +28,4 @@ def read_temperature():
         temp = ds.read_temp(rom)
         current_temp = temp
         print(f"Updated temperature: {temp:.2f}°C")
-
-def temperature_updater():
-    while True:
-        read_temperature()
-        time.sleep(300)  # 5 min
-
-read_temperature()
-
-_thread.start_new_thread(temperature_updater, ())
-
+    return temp
