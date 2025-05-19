@@ -73,6 +73,7 @@ while True:
                 print("Result:", result)
                 if not result["safe"]:
                     uart.write(b"true")
+                    print ("Sent signal to speed camera...")
 
             prev_time = now
             prev_speed = speed
