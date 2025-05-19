@@ -6,6 +6,14 @@ ECHO_PIN = 16
 trig = Pin(TRIG_PIN, Pin.OUT)
 echo = Pin(ECHO_PIN, Pin.IN)
 uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))
+camera_led = Pin(12, Pin.OUT)
+
+violation_triggered = False
+
+def detected_violation():
+    camera_led.on()        
+    sleep(0.5)        
+    camera_led.off()            
 
 # Function to measure distance
 def measure_distance():
@@ -57,5 +65,11 @@ while True:
             break
 
     # print("Waiting for a new vehicle...")
+    if uart.any():
+        msg = uart.readline()
+        if msg and msg.strip() == b"true" and not violation_triggered:
+            print("Violation detected!")
+            detected_violation()
+            violation_triggered = True 
 
     time.sleep(0.01)

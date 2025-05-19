@@ -71,6 +71,8 @@ while True:
                     weastatus.has_snow
                 )
                 print("Result:", result)
+                if not result["safe"]:
+                    uart.write(b"true")
 
             prev_time = now
             prev_speed = speed
