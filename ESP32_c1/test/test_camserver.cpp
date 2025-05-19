@@ -1,3 +1,4 @@
+/* Test code used to start camera server of the ESP32 */
 #include "esp_camera.h"
 #include <WiFi.h>
 
