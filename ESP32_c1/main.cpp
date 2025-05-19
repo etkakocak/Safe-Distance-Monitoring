@@ -1,3 +1,5 @@
+/* Use this file as is if you're using VS Code but if you're using the Arduino IDE, rename this file to main.ino. */
+
 #include "esp_camera.h"
 #include "esp_heap_caps.h"
 
