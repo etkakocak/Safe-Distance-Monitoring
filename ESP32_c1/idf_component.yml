@@ -1,0 +1,6 @@
+# This file is only valid for VSCode + ESP-IDF environment.
+# If you are using Arduino IDE you do not need this file.
+
+dependencies:
+  espressif/led_strip: ^2.4.1
+  espressif/esp32-camera: '*'
