@@ -1,126 +1,146 @@
 #include "esp_camera.h"
-#include <WiFi.h>
+#include "esp_heap_caps.h"
 
-#define CAMERA_MODEL_AI_THINKER // Has PSRAM
+/* TFLite-Micro */
+#include "model_data.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/schema/schema_generated.h"
+#include "tensorflow/lite/version.h"
 
+#define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 
-const char *ssid = "xx";
-const char *password = "xx";
+#define RESULT_PIN 2  // GPIO2 output pin for Raspberry Pi Pico W
 
-void startCameraServer();
-void setupLedFlash(int pin);
+/* TFLite arena */
+constexpr int kTensorArenaSize = 256 * 1024;
+uint8_t* tensor_arena = nullptr;
+tflite::MicroInterpreter* interpreter = nullptr;
+TfLiteTensor* input = nullptr;
+TfLiteTensor* output = nullptr;
+
+/* Model & image parameters */
+const int IMG_W = 96;
+const int IMG_H = 96;
+const float THRESH = 0.90f;
 
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
 
-  camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
-  config.pin_sccb_sda = SIOD_GPIO_NUM;
-  config.pin_sccb_scl = SIOC_GPIO_NUM;
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_JPEG;  // for streaming
-  //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
-  config.fb_count = 1;
+  pinMode(RESULT_PIN, OUTPUT);
+  digitalWrite(RESULT_PIN, LOW);  // default: Passenger vehicle
 
-  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
-  //                      for larger pre-allocated frame buffer.
-  if (config.pixel_format == PIXFORMAT_JPEG) {
-    if (psramFound()) {
-      config.jpeg_quality = 10;
-      config.fb_count = 2;
-      config.grab_mode = CAMERA_GRAB_LATEST;
-    } else {
-      // Limit the frame size when PSRAM is not available
-      config.frame_size = FRAMESIZE_SVGA;
-      config.fb_location = CAMERA_FB_IN_DRAM;
-    }
-  } else {
-    // Best option for face detection/recognition
-    config.frame_size = FRAMESIZE_240X240;
-#if CONFIG_IDF_TARGET_ESP32S3
-    config.fb_count = 2;
-#endif
-  }
+  camera_config_t cam;
+  cam.ledc_channel = LEDC_CHANNEL_0;
+  cam.ledc_timer   = LEDC_TIMER_0;
+  cam.pin_d0 = Y2_GPIO_NUM;  cam.pin_d1 = Y3_GPIO_NUM;
+  cam.pin_d2 = Y4_GPIO_NUM;  cam.pin_d3 = Y5_GPIO_NUM;
+  cam.pin_d4 = Y6_GPIO_NUM;  cam.pin_d5 = Y7_GPIO_NUM;
+  cam.pin_d6 = Y8_GPIO_NUM;  cam.pin_d7 = Y9_GPIO_NUM;
+  cam.pin_xclk = XCLK_GPIO_NUM; cam.pin_pclk = PCLK_GPIO_NUM;
+  cam.pin_vsync = VSYNC_GPIO_NUM; cam.pin_href = HREF_GPIO_NUM;
+  cam.pin_sccb_sda = SIOD_GPIO_NUM; cam.pin_sccb_scl = SIOC_GPIO_NUM;
+  cam.pin_pwdn = PWDN_GPIO_NUM; cam.pin_reset = RESET_GPIO_NUM;
+  cam.xclk_freq_hz = 20000000;
+  cam.frame_size = FRAMESIZE_QQVGA;
+  cam.pixel_format = PIXFORMAT_RGB565;
+  cam.fb_location = CAMERA_FB_IN_PSRAM;
+  cam.jpeg_quality = 12;
+  cam.fb_count = 1;
 
-#if defined(CAMERA_MODEL_ESP_EYE)
-  pinMode(13, INPUT_PULLUP);
-  pinMode(14, INPUT_PULLUP);
-#endif
-
-  // camera init
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
+  if (esp_camera_init(&cam) != ESP_OK) {
+    Serial.println("Camera error");
     return;
   }
 
-  sensor_t *s = esp_camera_sensor_get();
-  // initial sensors are flipped vertically and colors are a bit saturated
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);        // flip it back
-    s->set_brightness(s, 1);   // up the brightness just a bit
-    s->set_saturation(s, -2);  // lower the saturation
-  }
-  // drop down frame size for higher initial frame rate
-  if (config.pixel_format == PIXFORMAT_JPEG) {
-    s->set_framesize(s, FRAMESIZE_QVGA);
+  tensor_arena = (uint8_t*)heap_caps_malloc(kTensorArenaSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!tensor_arena) {
+    Serial.println("Arena allocation failed");
+    return;
   }
 
-#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-  s->set_vflip(s, 1);
-  s->set_hmirror(s, 1);
-#endif
-
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
-  s->set_vflip(s, 1);
-#endif
-
-// Setup LED FLash if LED pin is defined in camera_pins.h
-#if defined(LED_GPIO_NUM)
-  setupLedFlash(LED_GPIO_NUM);
-#endif
-
-  WiFi.begin(ssid, password);
-  WiFi.setSleep(false);
-
-  Serial.print("WiFi connecting");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  const tflite::Model* model = tflite::GetModel(vehicle_classifier_int8_tflite);
+  if (model->version() != TFLITE_SCHEMA_VERSION) {
+    Serial.println("Model error");
+    return;
   }
-  Serial.println("");
-  Serial.println("WiFi connected");
 
-  startCameraServer();
+  static tflite::MicroMutableOpResolver<10> resolver;
+  resolver.AddQuantize(); resolver.AddDequantize();
+  resolver.AddDepthwiseConv2D(); resolver.AddConv2D();
+  resolver.AddAveragePool2D(); resolver.AddFullyConnected();
+  resolver.AddReshape(); resolver.AddAdd();
+  resolver.AddMean(); resolver.AddLogistic();
 
-  Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("' to connect");
+  static tflite::MicroInterpreter static_interp(model, resolver, tensor_arena, kTensorArenaSize);
+  interpreter = &static_interp;
+
+  if (interpreter->AllocateTensors() != kTfLiteOk) {
+    Serial.println("Tensor allocation failed");
+    return;
+  }
+
+  input = interpreter->input(0);
+  output = interpreter->output(0);
+
+  Serial.printf("Arena usage: %d / %d B\n", interpreter->arena_used_bytes(), kTensorArenaSize);
+  Serial.printf("Free internal heap: %d  |  Free PSRAM: %d\n",
+                heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+}
+
+void classifyImage() {
+  camera_fb_t* fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("Frame error");
+    return;
+  }
+
+  const float in_scale = input->params.scale;
+  const int in_zp = input->params.zero_point;
+  uint8_t* in_buf = input->data.uint8;
+  int idx = 0;
+
+  for (int y = 0; y < IMG_H; ++y) {
+    int oy = y * fb->height / IMG_H;
+    for (int x = 0; x < IMG_W; ++x) {
+      int ox = x * fb->width / IMG_W;
+      int pos = (oy * fb->width + ox) * 2;
+      if (pos + 1 >= fb->len) continue;
+
+      uint16_t pix = (fb->buf[pos] << 8) | fb->buf[pos + 1];
+      uint8_t r = ((pix >> 11) & 0x1F) << 3;
+      uint8_t g = ((pix >> 5) & 0x3F) << 2;
+      uint8_t b = (pix & 0x1F) << 3;
+
+      in_buf[idx++] = (uint8_t)((r / 255.0f) / in_scale + in_zp);
+      in_buf[idx++] = (uint8_t)((g / 255.0f) / in_scale + in_zp);
+      in_buf[idx++] = (uint8_t)((b / 255.0f) / in_scale + in_zp);
+    }
+  }
+  esp_camera_fb_return(fb);
+
+  if (interpreter->Invoke() != kTfLiteOk) {
+    Serial.println("Invoke error");
+    return;
+  }
+
+  int8_t out_q = output->data.uint8[0];
+  float prob = (out_q - output->params.zero_point) * output->params.scale;
+
+  if (prob >= THRESH) {
+    Serial.printf("🔴 Heavy vehicle (prob=%.3f)\n", prob);
+    digitalWrite(RESULT_PIN, HIGH);
+  } else {
+    Serial.printf("🟢 Passenger vehicle (prob=%.3f)\n", prob);
+    digitalWrite(RESULT_PIN, LOW);
+  }
 }
 
 void loop() {
-  // Do nothing. Everything is done in another task by the web server
-  delay(10000);
+  classifyImage();
+  delay(1000);   // 1 sec
 }
