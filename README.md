@@ -1,3 +1,4 @@
 # Safe Distance Monitoring
+This project presents a prototype system designed to monitor the following distances between vehicles and detect tailgating violations in real time. Built with embedded microcontrollers and integrated sensor technology, the system aims to demonstrate the feasibility of distance monitoring enforcement. By combining real-time data processing, signal processing, machine learning-based vehicle classification, and adaptive safety thresholds, the prototype provides an autonomous lab-scale proof of concept.  
 
 This project was conducted as part of a Bachelor's thesis in Computer Science.
