@@ -28,8 +28,8 @@ Detailed wiring diagrams and hardware schematics for both circuits are provided 
 
 2. Once flashed, the Pico W can be easily programmed via USB using, for example, Thonny IDE.
 
-3. A pretrained and quantized vehicle classification model "vehicle_classifier_int8.tflite" is located in the root directory. There are two options for setting up the model on the ESP32-CAM:  
-3.1. You can directly deploy the provided model by following the instructions in "ESP32_c1/model_data.h" without additional training.  
-3.2. If you wish to train the model with your own dataset, use "train_model.py" to train and test your trained model locally using "test_model.py", both located in the root directory. Follow the instructions in "ESP32_c1/model_data.h" after.
+3. A pretrained and quantized vehicle classification model ``vehicle_classifier_int8.tflite`` is located in the root directory. There are two options for setting up the model on the ESP32-CAM:  
+3.1. You can directly deploy the provided model by following the instructions in ``ESP32_c1/model_data.h`` without additional training.  
+3.2. If you wish to train the model with your own dataset, use ``train_model.py`` to train and test your trained model locally using ``test_model.py``, both located in the root directory. Follow the instructions in ``ESP32_c1/model_data.h`` after.
 
-4. ESP-IDF framework will be used to program the ESP32-CAM. Depending on whether you prefer Visual Studio Code or the Arduino IDE, instructions for both options are documented inside the code files located in the ESP32_c1/ directory. 
+4. ESP-IDF framework will be used to program the ESP32-CAM. Depending on whether you prefer Visual Studio Code or the Arduino IDE, instructions for both options are documented inside the code files located in the ``ESP32_c1/`` directory. 
